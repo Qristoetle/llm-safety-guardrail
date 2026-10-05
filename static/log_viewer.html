@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI安全审查系统 - 日志查看器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 14px; }
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-section {
+            padding: 20px 30px;
+            background: #fff;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-group { display: flex; align-items: center; gap: 10px; }
+        .filter-label { font-size: 14px; font-weight: 600; color: #495057; }
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        .filter-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5568d3; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; }
+        .collapse-all-btn { background: #6c757d; color: white; }
+        .collapse-all-btn:hover { background: #5a6268; }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-info { color: #666; font-size: 14px; }
+        .content { padding: 30px; }
+        .log-entry {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .log-entry:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .log-meta { display: flex; gap: 20px; flex-wrap: wrap; }
+        .log-meta-item { display: flex; flex-direction: column; gap: 5px; }
+        .log-meta-label { font-size: 12px; color: #6c757d; font-weight: 600; text-transform: uppercase; }
+        .log-meta-value { font-size: 14px; color: #212529; font-weight: 500; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .status-danger { background: #f8d7da; color: #721c24; }
+        .modules-timeline { margin-top: 20px; }
+        .module-item {
+            display: flex;
+            gap: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .module-item.status-passed { border-left-color: #28a745; }
+        .module-item.status-warning { border-left-color: #ffc107; }
+        .module-item.status-rejected { border-left-color: #dc3545; }
+        .module-icon {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .module-content { flex: 1; }
+        .module-name { font-weight: 600; font-size: 16px; margin-bottom: 5px; }
+        .module-reason { font-size: 14px; color: #6c757d; margin-bottom: 10px; }
+        .module-time { font-size: 12px; color: #28a745; font-weight: 600; }
+        .module-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 13px;
+            display: none;
+        }
+        .module-details.show { display: block; }
+        .message-box {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .message-label { font-size: 12px; color: #6c757d; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+        .message-text { font-size: 14px; line-height: 1.6; color: #212529; white-space: pre-wrap; word-break: break-word; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #6c757d; }
+        .empty-state-icon { font-size: 64px; margin-bottom: 20px; opacity: 0.5; }
+        .loading { text-align: center; padding: 40px; color: #667eea; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toggle-details { cursor: pointer; color: #667eea; font-size: 13px; margin-top: 5px; user-select: none; }
+        .toggle-details:hover { text-decoration: underline; }
+        @media (max-width: 768px) {
+            .log-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .log-meta { width: 100%; }
+            .module-item { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ AI安全审查系统 - 日志查看器</h1>
+            <p>实时监控和分析每个模块的执行情况</p>
+        </div>
+        <div class="controls">
+            <button class="btn btn-primary" onclick="loadLogs()">🔄 刷新日志</button>
+            <button class="btn btn-danger" onclick="clearLogs()">🗑️ 清空历史</button>
+            <button class="btn btn-success" onclick="testChat()">🧪 测试对话</button>
+            <button class="btn collapse-all-btn" onclick="collapseAll()">📁 全部折叠</button>
+            <button class="btn collapse-all-btn" onclick="expandAll()">📂 全部展开</button>
+            <span class="status-info">总记录数: <strong id="totalCount">0</strong> | 显示: <strong id="displayCount">0</strong></span>
+        </div>
+        <div class="filter-section">
+            <div class="filter-group">
+                <label class="filter-label">💾 快照管理:</label>
+                <select id="snapshotSelect" class="filter-input" onchange="loadSnapshot()" style="min-width: 200px;">
+                    <option value="">当前日志 (未保存)</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <button class="btn btn-success" onclick="saveSnapshot()">💾 保存快照</button>
+            </div>
+        </div>
+        <div class="filter-section">
+            <div class="filter-group">
+                <label class="filter-label">📅 开始时间:</label>
+                <input type="datetime-local" id="startDate" class="filter-input" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">📅 结束时间:</label>
+                <input type="datetime-local" id="endDate" class="filter-input" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">📊 状态筛选:</label>
+                <select id="statusFilter" class="filter-input" onchange="applyFilters()">
+                    <option value="all">全部</option>
+                    <option value="成功">成功</option>
+                    <option value="被门卫模块拒绝">门卫拒绝</option>
+                    <option value="被自审查模块拒绝">自审查拒绝</option>
+                    <option value="错误">错误</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <button class="btn btn-primary" onclick="resetFilters()">🔄 重置筛选</button>
+            </div>
+        </div>
+        <div class="content" id="logsContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>正在加载日志...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = (() => {
+            const currentProtocol = window.location.protocol;
+            if (currentProtocol === 'file:') return 'http://localhost:6006';
+            return `${currentProtocol}//${window.location.host}`;
+        })();
+        
+        let allLogs = [];
+        let filteredLogs = [];
+        let currentSnapshot = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadLogs();
+            loadSnapshotsList();
+            setInterval(() => { if (!currentSnapshot) loadLogs(); }, 30000);
+        });
+
+        async function loadLogs() {
+            if (currentSnapshot) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/logs/history?limit=1000`);
+                const data = await response.json();
+                const container = document.getElementById('logsContainer');
+                document.getElementById('totalCount').textContent = data.total;
+                if (!data.success) {
+                    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>加载失败</h3><p>${data.error || '未知错误'}</p></div>`;
+                    return;
+                }
+                allLogs = data.logs || [];
+                if (allLogs.length === 0) {
+                    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><h3>暂无日志记录</h3><p>发送一些消息后，日志将在这里显示</p></div>`;
+                    return;
+                }
+                applyFilters();
+            } catch (error) {
+                document.getElementById('logsContainer').innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><h3>连接失败</h3><p>无法连接到后端服务</p></div>`;
+            }
+        }
+
+        function applyFilters() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            filteredLogs = allLogs.filter(log => {
+                if (startDate || endDate) {
+                    const logDate = new Date(log.timestamp);
+                    if (startDate && logDate < new Date(startDate)) return false;
+                    if (endDate && logDate > new Date(endDate)) return false;
+                }
+                if (statusFilter !== 'all' && log.final_status !== statusFilter) return false;
+                return true;
+            });
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logsContainer');
+            document.getElementById('displayCount').textContent = filteredLogs.length;
+            if (filteredLogs.length === 0) {
+                container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><h3>没有符合条件的日志</h3></div>`;
+                return;
+            }
+            container.innerHTML = filteredLogs.map((log, index) => renderLogEntry(log, index)).join('');
+        }
+
+        function resetFilters() {
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            document.getElementById('statusFilter').value = 'all';
+            applyFilters();
+        }
+
+        function collapseAll() { document.querySelectorAll('.module-details').forEach(el => el.classList.remove('show')); }
+        function expandAll() { document.querySelectorAll('.module-details').forEach(el => el.classList.add('show')); }
+
+        function renderLogEntry(log, index) {
+            const statusClass = log.final_status === '成功' ? 'status-success' : (log.final_status.includes('拒绝') || log.final_status === '错误' ? 'status-danger' : 'status-warning');
+            return `
+                <div class="log-entry">
+                    <div class="log-header">
+                        <div class="log-meta">
+                            <div class="log-meta-item"><span class="log-meta-label">时间</span><span class="log-meta-value">${log.timestamp}</span></div>
+                            <div class="log-meta-item"><span class="log-meta-label">用户</span><span class="log-meta-value">${log.user_id}</span></div>
+                            <div class="log-meta-item"><span class="log-meta-label">总耗时</span><span class="log-meta-value" style="color: #28a745;">${log.total_time}</span></div>
+                        </div>
+                        <span class="status-badge ${statusClass}">${log.final_status}</span>
+                    </div>
+                    <div class="message-box"><div class="message-label">用户提问</div><div class="message-text">${escapeHtml(log.message || log.input || '')}</div></div>
+                    ${log.answer ? `<div class="message-box"><div class="message-label">AI回答</div><div class="message-text">${escapeHtml(log.answer)}</div></div>` : ''}
+                    ${log.rejected_answer ? `<div class="message-box" style="border-color: #dc3545;"><div class="message-label" style="color: #dc3545;">被拒绝的回答</div><div class="message-text">${escapeHtml(log.rejected_answer)}</div></div>` : ''}
+                    <div class="modules-timeline">${(log.modules || []).map(m => renderModule(m, index)).join('')}</div>
+                </div>`;
+        }
+
+        function renderModule(module, logIndex) {
+            const statusClass = module.status === '通过' || module.status === '完成' ? 'status-passed' : (module.status === '警告' ? 'status-warning' : 'status-rejected');
+            const icons = {'门卫模块': '🚪', '政审模块': '🔍', '敏感词模块': '🔤', '回复模块': '💬', '自审查模块': '✅', '数据净化模块': '🧹'};
+            const detailsId = `details-${logIndex}-${module.name.replace(/\s/g, '')}`;
+            return `
+                <div class="module-item ${statusClass}">
+                    <div class="module-icon">${icons[module.name] || '📦'}</div>
+                    <div class="module-content">
+                        <div class="module-name">${module.name}</div>
+                        <div class="module-reason">${module.reason || '无'}</div>
+                        <div class="module-time">⏱️ ${module.time}</div>
+                        ${module.details && Object.keys(module.details).length > 0 ? `
+                            <div class="toggle-details" onclick="toggleDetails('${detailsId}')">📋 点击展开详细信息</div>
+                            <div id="${detailsId}" class="module-details"><pre style="margin: 0; white-space: pre-wrap;">${JSON.stringify(module.details, null, 2)}</pre></div>
+                        ` : ''}
+                    </div>
+                </div>`;
+        }
+
+        function toggleDetails(id) { document.getElementById(id)?.classList.toggle('show'); }
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+        async function clearLogs() {
+            if (!confirm('确定要清空所有历史日志吗？')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/logs/history`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) { alert('✅ 历史日志已清空'); loadLogs(); }
+                else alert('❌ 清空失败: ' + data.error);
+            } catch (error) { alert('❌ 清空失败: ' + error.message); }
+        }
+
+        async function testChat() {
+            const message = prompt('请输入测试消息:', '你好，这是一条测试消息');
+            if (!message) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: message, user_id: 'test_user' })
+                });
+                const data = await response.json();
+                alert(data.success ? `✅ 测试成功！\n\nAI回答: ${data.data}` : `⚠️ ${data.message || '被安全模块拒绝'}`);
+                loadLogs();
+            } catch (error) { alert('❌ 测试失败: ' + error.message); }
+        }
+
+        async function loadSnapshotsList() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/logs/snapshots`);
+                const data = await response.json();
+                if (!data.success) return;
+                const selectElement = document.getElementById('snapshotSelect');
+                selectElement.innerHTML = '<option value="">当前日志 (未保存)</option>';
+                data.snapshots.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = s.filename;
+                    option.textContent = `${s.name} (${s.timestamp}) - ${s.total}条`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) { console.error('加载快照列表失败:', error); }
+        }
+
+        async function saveSnapshot() {
+            const name = prompt('请输入快照名称:', `日志快照_${new Date().toLocaleDateString()}`);
+            if (!name || currentSnapshot) { if (currentSnapshot) alert('⚠️ 当前正在查看快照，请先切换到"当前日志"'); return; }
+            try {
+                const response = await fetch(`${API_BASE_URL}/logs/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const data = await response.json();
+                if (data.success) { alert(`✅ ${data.message}`); loadSnapshotsList(); }
+                else alert(`❌ 保存失败: ${data.error}`);
+            } catch (error) { alert('❌ 保存失败: ' + error.message); }
+        }
+
+        async function loadSnapshot() {
+            const filename = document.getElementById('snapshotSelect').value;
+            if (!filename) { currentSnapshot = null; loadLogs(); return; }
+            try {
+                const response = await fetch(`${API_BASE_URL}/logs/snapshot/${filename}`);
+                const data = await response.json();
+                if (!data.success) { alert(`❌ 加载失败: ${data.error}`); return; }
+                currentSnapshot = data.data;
+                allLogs = data.data.logs || [];
+                document.getElementById('totalCount').textContent = data.data.total || 0;
+                applyFilters();
+            } catch (error) { alert('❌ 加载失败: ' + error.message); }
+        }
+    </script>
+</body>
+</html>
